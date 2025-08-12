@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive DSA Course Recommender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Playfair+Display:wght@700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color-start: #ECE9F3; 
+            --bg-color-end: #F0F4F8; 
+            --primary-color: #6C5CE7;
+            --primary-dark: #4B0082;
+            --secondary-color: #8A2BE2;
+        }
+
+        body {
+            font-family: 'Lato', sans-serif;
+            background: linear-gradient(135deg, #ECE9F3 0%, #F0F4F8 100%);
+            color: #333333;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+            background-attachment: fixed;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: radial-gradient(circle, rgba(140, 106, 219, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            z-index: -1;
+        }
+        
+        h1, h2 {
+            font-family: 'Playfair Display', serif;
+        }
+        
+        .main-heading {
+            font-size: 4rem; 
+            font-weight: 700;
+            color: var(--primary-dark);
+            line-height: 1;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.1); 
+            letter-spacing: -1px;
+            animation: textRise 1s ease-out forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .main-heading span {
+            color: var(--secondary-color);
+        }
+        @keyframes textRise {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .sub-heading {
+            font-size: 1.5rem;
+            font-weight: 400;
+            color: #6a6a6a;
+            margin-top: 0.5rem;
+            animation: textFadeIn 1.2s ease-out forwards;
+            opacity: 0;
+            animation-delay: 0.2s;
+        }
+        @keyframes textFadeIn {
+            to { opacity: 1; }
+        }
+
+        /*--- Tab styles ---*/
+        .tab-container {
+            border-bottom: 2px solid #E0E0E0;
+            background: linear-gradient(to right, #F0F4F8, #E6E6FA);
+            border-radius: 1rem 1rem 0 0;
+        }
+        .nav-tab {
+            color: #555;
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 9999px;
+            background-color: transparent;
+            border: none;
+        }
+        .nav-tab:hover {
+            color: var(--primary-color);
+            background-color: rgba(108, 92, 231, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .nav-tab.tab-active {
+            color: white;
+            background-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(108, 92, 231, 0.3);
+        }
+        .nav-tab.tab-active:hover {
+            color: white;
+            background-color: var(--primary-color);
+        }
+
+        /*--- Card Styles (Generalized) ---*/
+        .course-card, .path-card {
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease-in-out, border-color 0.3s ease-in-out;
+            border: 2px solid #E0E0E0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            background: linear-gradient(145deg, #f0f4f8, #e6e6fa);
+        }
+        .course-card:hover, .path-card:hover {
+            transform: translateY(-8px) scale(1.03);
+            box-shadow: 0 12px 25px rgba(0,0,0,0.15);
+            border-color: var(--primary-color);
+            z-index: 10;
+        }
+
+        /*--- Graph Node Specific Styles ---*/
+        .course-node {
+            background-color: #fff; /* Override for the graph nodes to be plain */
+        }
+        .course-node.highlighted {
+            background-color: #7A5B9B;
+            color: white;
+            border-color: #5A3A7B;
+            box-shadow: 0 8px 15px rgba(122, 91, 155, 0.4);
+        }
+        .course-node.prereq {
+            background-color: #A27B5C; 
+            color: white;
+            border-color: #8D6B4E;
+        }
+        .course-node.unlocks {
+            background-color: #A6BFAB; 
+            color: #333;
+            border-color: #8E9E92;
+        }
+        
+        .path-step {
+            animation: fadeIn 0.6s ease-in-out forwards;
+            background-color: #F0F4F8; 
+            border: 1px solid #E0E0E0;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .loader {
+            border: 5px solid #E5E7EB;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .dsa-icon {
+            animation: bounceIn 0.8s ease-out;
+            transition: all 0.3s ease;
+        }
+        .dsa-icon:hover {
+            transform: translateY(-10px) scale(1.05);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+        }
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.1); opacity: 1; }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+        
+        .course-card {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 1px solid #E0E0E0;
+        }
+        .course-card:hover {
+            transform: scale(1.03);
+            box-shadow: 0 12px 25px rgba(0,0,0,0.08);
+        }
+
+        .color-box {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 8px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 md:p-12 relative z-10">
+        <header class="text-center mb-10 md:mb-16">
+            <h1 class="main-heading"><span>U</span>niversity <span>C</span>ourse <span>R</span>ecommender</h1>
+            <p class="sub-heading">Your Intelligent Guide to University Course Planning</p>
+        </header>
+
+        <div class="mb-12 md:mb-20">
+            <h2 class="text-3xl font-bold text-center mb-6 text-gray-800">The Power of DSA</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div class="path-card p-6 rounded-xl shadow-lg border border-gray-200 text-center dsa-icon">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-[#E6E6FA] rounded-full flex items-center justify-center text-[#4B0082]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M12 22V12"/></svg>
+                    </div>
+                    <h4 class="font-bold text-lg text-gray-800">Graph Theory</h4>
+                    <p class="text-sm text-gray-500 mt-2">All courses and their prerequisites are a directed graph.</p>
+                </div>
+                <div class="path-card p-6 rounded-xl shadow-lg border border-gray-200 text-center dsa-icon" style="animation-delay: 0.1s;">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-[#F0E6FA] rounded-full flex items-center justify-center text-[#8A2BE2]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 19h2c.6 0 1-.4 1-1v-4c0-.6-.4-1-1-1h-2m-4 0h-4c-.6 0-1-.4-1-1v-4c0-.6.4-1 1-1h4"/><path d="M17 11V5c0-.6-.4-1-1-1h-4c-.6 0-1 .4-1 1v6"/><path d="M17 11H7"/><path d="M7 11v6c0 .6.4 1 1 1h2"/><path d="M7 11H3c-.6 0-1 .4-1 1v4c0 .6.4 1 1 1h4"/></svg>
+                    </div>
+                    <h4 class="font-bold text-lg text-gray-800">Trie Search</h4>
+                    <p class="text-sm text-gray-500 mt-2">The search bar uses a Trie for lightning-fast autocomplete.</p>
+                </div>
+                <div class="path-card p-6 rounded-xl shadow-lg border border-gray-200 text-center dsa-icon" style="animation-delay: 0.2s;">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-[#E0FFE0] rounded-full flex items-center justify-center text-[#3CB371]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22V5.5C5 4.12 6.12 3 7.5 3h9c1.38 0 2.5 1.12 2.5 2.5V22l-6-3-6 3-6-3z"/><path d="M9 13H5m4-4H5m4-4H5"/></svg>
+                    </div>
+                    <h4 class="font-bold text-lg text-gray-800">BFS Traversal</h4>
+                    <p class="text-sm text-gray-500 mt-2">Your planner recommends classes using Breadth-First Search.</p>
+                </div>
+                <div class="path-card p-6 rounded-xl shadow-lg border border-gray-200 text-center dsa-icon" style="animation-delay: 0.3s;">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-[#FAEBD7] rounded-full flex items-center justify-center text-[#DAA520]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M12 22V12"/></svg>
+                    </div>
+                    <h4 class="font-bold text-lg text-gray-800">Topological Sort</h4>
+                    <p class="text-sm text-gray-500 mt-2">The semester path feature uses topological sort to arrange courses logically.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-4 md:p-8 border border-gray-200">
+            <div class="tab-container flex justify-between p-2 rounded-xl mb-6">
+                <nav class="flex space-x-2" id="tabs" role="tablist">
+                    <button data-tab="graph" class="nav-tab" role="tab" aria-controls="graph-content" aria-selected="false">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M12 22V12"/></svg>
+                        <span>Graph View</span>
+                    </button>
+                    <button data-tab="search" class="nav-tab" role="tab" aria-controls="search-content" aria-selected="false">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <span>Course Search</span>
+                    </button>
+                    <button data-tab="planner" class="nav-tab" role="tab" aria-controls="planner-content" aria-selected="false">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                        <span>My Planner</span>
+                    </button>
+                    <button data-tab="path" class="nav-tab" role="tab" aria-controls="path-content" aria-selected="false">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
+                        <span>Semesters</span>
+                    </button>
+                </nav>
+            </div>
+
+            <div id="tab-content">
+                <div id="graph-content" class="tab-pane" role="tabpanel" aria-labelledby="graph-tab">
+                    <div class="text-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-700">Course Dependency Graph</h2>
+                        <p class="text-gray-600 mt-1 max-w-3xl mx-auto">Explore the interconnected web of courses and their dependencies visually.</p>
+                    </div>
+                    <div id="graph-container" class="relative w-full h-[600px] md:h-[700px] bg-gray-50 rounded-xl border flex items-center justify-center">
+                        <div id="loading-spinner" class="loader"></div>
+                        <canvas id="graph-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+                        <div id="graph-nodes" class="absolute top-0 left-0 w-full h-full"></div>
+                    </div>
+                </div>
+
+                <div id="search-content" class="tab-pane hidden" role="tabpanel" aria-labelledby="search-tab">
+                    <div class="text-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-700">Course Search (Trie)</h2>
+                        <p class="text-gray-600 mt-1 max-w-3xl mx-auto">This search feature uses a Trie (Prefix Tree) for efficient auto-completion. As you type, the Trie is traversed to find all matching courses.</p>
+                    </div>
+                    <div class="max-w-xl mx-auto">
+                        <input type="text" id="search-input" placeholder="Type a course name or code (e.g., 'Intro' or 'CS101')" aria-label="Search for a course" class="w-full p-4 text-lg border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-violet-200 focus:border-violet-500 outline-none transition-all">
+                        <div id="search-results" class="mt-2 bg-white border border-gray-200 rounded-xl shadow-lg"></div>
+                    </div>
+                </div>
+
+                <div id="planner-content" class="tab-pane hidden" role="tabpanel" aria-labelledby="planner-tab">
+                    <div class="text-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-700">My Course Planner (BFS)</h2>
+                        <p class="text-gray-600 mt-1 max-w-3xl mx-auto">Select the courses you have completed. We'll use Breadth-First Search to find the courses you are immediately eligible to take next.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="path-card p-6 rounded-xl shadow-md border-2 border-gray-100">
+                            <h3 class="text-xl font-semibold mb-3 text-center text-gray-800">Select Completed Courses</h3>
+                            <div id="all-courses-list" class="h-96 overflow-y-auto p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 space-y-3">
+                                <p class="text-gray-500 text-center animate-pulse">Loading courses...</p>
+                            </div>
+                        </div>
+                        <div class="path-card p-6 rounded-xl shadow-md border-2 border-green-100">
+                            <h3 class="text-xl font-semibold mb-3 text-center text-gray-800">Recommended Courses for You</h3>
+                            <div id="recommended-courses-list" class="h-96 overflow-y-auto p-4 bg-green-50 rounded-lg border-2 border-dashed border-green-200">
+                                <p class="text-gray-500 text-center mt-4">Select courses to see recommendations.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="path-content" class="tab-pane hidden" role="tabpanel" aria-labelledby="path-tab">
+                    <div class="text-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-700">Semester Path Planner</h2>
+                        <p class="text-gray-600 mt-1 max-w-3xl mx-auto">Select a semester from the dropdown to see its courses in a logical, prerequisite-first order.</p>
+                    </div>
+                    <div class="max-w-md mx-auto mb-8">
+                        <select id="semester-select" class="w-full p-4 text-lg border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-violet-200 focus:border-violet-500 outline-none transition-all">
+                            <option value="">-- Select a Semester --</option>
+                        </select>
+                    </div>
+                    <div id="semester-path-container" class="flex flex-wrap gap-6 justify-center">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-12 md:mt-16 text-center">
+            <h3 class="text-2xl font-bold text-gray-700 mb-4">Color Definitions</h3>
+            <div class="flex flex-wrap justify-center gap-6">
+                <div class="flex items-center">
+                    <span class="color-box" style="background-color: #7A5B9B;"></span>
+                    <span class="text-gray-600">Selected Course</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="color-box" style="background-color: #A27B5C;"></span>
+                    <span class="text-gray-600">Prerequisites</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="color-box" style="background-color: #A6BFAB;"></span>
+                    <span class="text-gray-600">Unlocks</span>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="text-center mt-12 text-gray-500">
+            <p>Built to demonstrate practical applications of DSA concepts.</p>
+        </footer>
+    </div>
+
+<script>
+const API_BASE_URL = 'http://localhost:5000/api';
+
+class CourseGraph {
+    constructor() {
+        this.adjList = new Map();
+        this.nodes = new Map();
+    }
+
+    addNode(id, data) {
+        if (!this.adjList.has(id)) {
+            this.adjList.set(id, []);
+        }
+        this.nodes.set(id, data);
+    }
+
+    addEdge(prereqId, courseId) {
+        if (this.adjList.has(prereqId) && this.adjList.has(courseId)) {
+            this.adjList.get(prereqId).push(courseId);
+        }
+    }
+
+    getNeighbors(id) {
+        return this.adjList.get(id) || [];
+    }
+    
+    getNode(id) {
+        return this.nodes.get(id);
+    }
+    
+    getAllNodes() {
+        return Array.from(this.nodes.values());
+    }
+
+    topologicalSort(courseIds) {
+        const inDegree = new Map();
+        const queue = [];
+        const result = [];
+        
+        courseIds.forEach(id => {
+            inDegree.set(id, 0);
+        });
+
+        courseIds.forEach(id => {
+            const course = this.getNode(id);
+            if (course && course.prerequisites) {
+                course.prerequisites.forEach(prereqId => {
+                    if (inDegree.has(prereqId)) {
+                        inDegree.set(id, inDegree.get(id) + 1);
+                    }
+                });
+            }
+        });
+
+        inDegree.forEach((degree, courseId) => {
+            if (degree === 0) {
+                queue.push(courseId);
+            }
+        });
+
+        while (queue.length > 0) {
+            const currentCourseId = queue.shift();
+            result.push(currentCourseId);
+            
+            const unlockedCourses = this.getNeighbors(currentCourseId);
+            unlockedCourses.forEach(unlockedCourseId => {
+                if (inDegree.has(unlockedCourseId)) {
+                    inDegree.set(unlockedCourseId, inDegree.get(unlockedCourseId) - 1);
+                    if (inDegree.get(unlockedCourseId) === 0) {
+                        queue.push(unlockedCourseId);
+                    }
+                }
+            });
+        }
+        
+        if (result.length !== courseIds.length) {
+            console.warn("Circular dependency detected among semester courses. Not all courses could be sorted topologically.");
+        }
+        
+        return result;
+    }
+}
+
+class TrieNode {
+    constructor() {
+        this.children = {};
+        this.courseIds = new Set();
+    }
+}
+
+class Trie {
+    constructor() {
+        this.root = new TrieNode();
+    }
+
+    insert(word, courseId) {
+        let node = this.root;
+        word = word.toLowerCase();
+        for (const char of word) {
+            if (!node.children[char]) {
+                node.children[char] = new TrieNode();
+            }
+            node = node.children[char];
+        }
+        node.courseIds.add(courseId);
+    }
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    const graph = new CourseGraph();
+    const trie = new Trie();
+    const semestersData = {};
+    const loadingSpinner = document.getElementById('loading-spinner');
+    const tabs = document.querySelectorAll('.nav-tab');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    const graphContainer = document.getElementById('graph-container');
+    const nodesContainer = document.getElementById('graph-nodes');
+    const canvas = document.getElementById('graph-canvas');
+    const ctx = canvas.getContext('2d');
+    const searchInput = document.getElementById('search-input');
+    const searchResultsContainer = document.getElementById('search-results');
+    const allCoursesList = document.getElementById('all-courses-list');
+    const recommendedCoursesList = document.getElementById('recommended-courses-list');
+    const semesterSelect = document.getElementById('semester-select');
+    const semesterPathContainer = document.getElementById('semester-path-container');
+
+    function showLoading(element) {
+        if (element) {
+            element.innerHTML = '<div class="loader mx-auto my-8"></div>';
+        } else {
+            loadingSpinner.style.display = 'block';
+        }
+    }
+
+    function hideLoading() {
+        loadingSpinner.style.display = 'none';
+        document.getElementById('graph-content').classList.remove('hidden');
+    }
+
+    async function initApp() {
+        showLoading();
+        try {
+            const coursesResponse = await fetch(`${API_BASE_URL}/courses`);
+            const courses = await coursesResponse.json();
+            
+            const semestersResponse = await fetch(`${API_BASE_URL}/semesters`);
+            const semesters = await semestersResponse.json();
+            
+            courses.forEach(c => {
+                graph.addNode(c.id, c);
+                trie.insert(c.id, c.id);
+                if (c.name || c.Name) {
+                    const courseName = c.name || c.Name;
+                    trie.insert(courseName, c.id);
+                }
+            });
+            courses.forEach(c => {
+                (c.prerequisites || []).forEach(prereq => graph.addEdge(prereq, c.id));
+            });
+            
+            // Fix: The backend is returning an object, so we must iterate its keys.
+            // This is the primary fix for the dropdown issue.
+            for (const key in semesters) {
+                if (semesters.hasOwnProperty(key)) {
+                    semestersData[key] = semesters[key];
+                }
+            }
+            
+            drawGraph();
+            populatePlannerCourses();
+            populateSemesters();
+            
+        } catch (error) {
+            console.error('Failed to load data:', error);
+            alert('Failed to load course data. Please ensure your backend is running and the database is populated.');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    function drawGraph() {
+        const rect = graphContainer.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        nodesContainer.innerHTML = '';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const nodes = graph.getAllNodes();
+        const edges = [];
+        
+        const layout = generateGridLayout(nodes, canvas.width, canvas.height);
+
+        nodes.forEach(node => {
+            const nodeEl = document.createElement('div');
+            nodeEl.className = 'course-node absolute flex flex-col items-center justify-center p-2 rounded-lg bg-white shadow-md cursor-pointer text-center';
+            nodeEl.style.width = '120px';
+            nodeEl.style.height = '60px';
+            
+            const pos = layout[node.id];
+            nodeEl.style.left = `${pos.x - 60}px`;
+            nodeEl.style.top = `${pos.y - 30}px`;
+            
+            const courseName = node.name || node.Name;
+            nodeEl.innerHTML = `<span class="font-bold text-sm">${node.id}</span><span class="text-xs leading-tight text-gray-500">${courseName}</span>`;
+            nodeEl.dataset.id = node.id;
+            nodesContainer.appendChild(nodeEl);
+        });
+
+        edges.length = 0;
+        nodes.forEach(node => {
+            (node.prerequisites || []).forEach(prereqId => {
+                edges.push([prereqId, node.id]);
+            });
+        });
+
+        edges.forEach(([prereqId, courseId]) => {
+            const prereqNodePos = layout[prereqId];
+            const courseNodePos = layout[courseId];
+            if (!prereqNodePos || !courseNodePos) return;
+
+            const startX = prereqNodePos.x;
+            const startY = prereqNodePos.y;
+            const endX = courseNodePos.x;
+            const endY = courseNodePos.y;
+
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = '#D1D5DB';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            const angle = Math.atan2(endY - startY, endX - startX);
+            ctx.save();
+            ctx.translate(endX, endY);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(-15, -7);
+            ctx.lineTo(0, 0);
+            ctx.lineTo(-15, 7);
+            ctx.fillStyle = '#D1D5DB';
+            ctx.fill();
+            ctx.restore();
+        });
+
+        document.querySelectorAll('.course-node').forEach(el => {
+            el.addEventListener('mouseenter', (e) => highlightNode(e.currentTarget.dataset.id));
+            el.addEventListener('mouseleave', clearHighlights);
+        });
+    }
+
+    function generateGridLayout(nodes, width, height) {
+        const numNodes = nodes.length;
+        const cols = Math.ceil(Math.sqrt(numNodes));
+        const rows = Math.ceil(numNodes / cols);
+        const margin = 50;
+        const nodeWidth = 120;
+        const nodeHeight = 60;
+        const spacingX = (width - 2 * margin) / (cols > 1 ? cols - 1 : 1);
+        const spacingY = (height - 2 * margin) / (rows > 1 ? rows - 1 : 1);
+
+        const layout = {};
+        nodes.forEach((node, index) => {
+            const row = Math.floor(index / cols);
+            const col = index % cols;
+            const startX = (width - (cols - 1) * spacingX) / 2;
+            const startY = (height - (rows - 1) * spacingY) / 2;
+            
+            const x = startX + col * spacingX;
+            const y = startY + row * spacingY;
+            layout[node.id] = { x, y };
+        });
+        return layout;
+    }
+
+
+    function highlightNode(nodeId) {
+        clearHighlights();
+        const node = graph.getNode(nodeId);
+        if (!node) return;
+
+        const nodeEl = document.querySelector(`.course-node[data-id="${nodeId}"]`);
+        if (nodeEl) nodeEl.classList.add('highlighted');
+
+        (node.prerequisites || []).forEach(prereqId => {
+            const prereqEl = document.querySelector(`.course-node[data-id="${prereqId}"]`);
+            if (prereqEl) prereqEl.classList.add('prereq');
+        });
+
+        graph.getNeighbors(nodeId).forEach(neighborId => {
+            const neighborEl = document.querySelector(`.course-node[data-id="${neighborId}"]`);
+            if (neighborEl) neighborEl.classList.add('unlocks');
+        });
+    }
+
+    function clearHighlights() {
+        document.querySelectorAll('.course-node').forEach(el => {
+            el.classList.remove('highlighted', 'prereq', 'unlocks');
+        });
+    }
+
+    function populatePlannerCourses() {
+        allCoursesList.innerHTML = '';
+        graph.getAllNodes().sort((a, b) => a.id.localeCompare(b.id)).forEach(node => {
+            const div = document.createElement('div');
+            const courseName = node.name || node.Name;
+            div.className = 'p-3 bg-white rounded-lg border border-gray-200 hover:bg-violet-50 transition-colors course-card';
+            div.innerHTML = `
+                <label class="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" data-course-id="${node.id}" class="h-5 w-5 rounded border-gray-300 text-violet-600 focus:ring-violet-500">
+                    <span><span class="font-bold">${node.id}</span>: ${courseName}</span>
+                </label>
+            `;
+            allCoursesList.appendChild(div);
+        });
+    }
+
+    async function updateRecommendations() {
+        const completedCourses = [];
+        document.querySelectorAll('#all-courses-list input:checked').forEach(input => {
+            completedCourses.push(input.dataset.courseId);
+        });
+
+        showLoading(recommendedCoursesList);
+        try {
+            const response = await fetch(`${API_BASE_URL}/recommendations`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completed_courses: completedCourses })
+            });
+            const recommendations = await response.json();
+            
+            recommendedCoursesList.innerHTML = '';
+            if (recommendations.length > 0) {
+                recommendations.forEach(recId => {
+                    const node = graph.getNode(recId);
+                    const courseName = node.name || node.Name;
+                    const div = document.createElement('div');
+                    div.className = 'path-step p-3 bg-white rounded-lg border border-green-200 shadow-sm transition-transform course-card';
+                    div.innerHTML = `<span class="font-bold text-green-700">${node.id}</span>: <span class="text-gray-700">${courseName}</span>`;
+                    recommendedCoursesList.appendChild(div);
+                });
+            } else {
+                recommendedCoursesList.innerHTML = '<p class="text-gray-500 text-center mt-4 p-4 rounded-lg bg-gray-100 border border-gray-200">No courses available. Try completing more prerequisites!</p>';
+            }
+        } catch (error) {
+            console.error('Failed to get recommendations:', error);
+            recommendedCoursesList.innerHTML = '<p class="text-red-500 text-center p-4 rounded-lg bg-red-50 border border-red-200">Error fetching recommendations.</p>';
+        }
+    }
+
+    function populateSemesters() {
+        semesterSelect.innerHTML = '<option value="">-- Select a Semester --</option>';
+        // Iterate through the keys of the semestersData object
+        for (const key in semestersData) {
+            // Check to ensure the property belongs to the object itself
+            if (semestersData.hasOwnProperty(key)) {
+                const option = document.createElement('option');
+                option.value = key;
+                // Use the 'Name' property from your provided JSON
+                const semesterName = semestersData[key].Name || semestersData[key].name;
+                option.textContent = semesterName;
+                semesterSelect.appendChild(option);
+            }
+        }
+    }
+    
+    async function showCoursesForSemester(semesterKey) {
+        semesterPathContainer.innerHTML = '';
+        if (!semesterKey) {
+             semesterPathContainer.innerHTML = '<p class="text-gray-500 text-center p-4 rounded-lg bg-gray-100 border border-gray-200">Please select a semester from the dropdown.</p>';
+            return;
+        }
+        
+        showLoading(semesterPathContainer);
+        try {
+            const semesterData = semestersData[semesterKey];
+
+            semesterPathContainer.innerHTML = '';
+            
+            const coursesArray = semesterData && semesterData.courses;
+
+            if (coursesArray && Array.isArray(coursesArray) && coursesArray.length > 0) {
+                const topologicallySortedCourses = graph.topologicalSort(coursesArray);
+
+                const semesterDiv = document.createElement('div');
+                semesterDiv.className = 'path-card flex-1 min-w-[250px] p-6 rounded-xl shadow-md border border-gray-200';
+                
+                let innerHTML = `<h4 class="font-bold text-lg mb-4 text-center text-[#4B0082]">Courses for ${semesterSelect.options[semesterSelect.selectedIndex].text}</h4><div class="space-y-3">`;
+                
+                if (topologicallySortedCourses.length === coursesArray.length) {
+                    topologicallySortedCourses.forEach((courseId, index) => {
+                        const node = graph.getNode(courseId);
+                        if (node) {
+                            const courseName = node.name || node.Name;
+                            innerHTML += `
+                                <div class="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100 text-sm path-step" style="animation-delay: ${index * 0.05}s;">
+                                    <span class="font-semibold">${node.id}</span>: ${courseName}
+                                </div>
+                            `;
+                        }
+                    });
+                } else {
+                    innerHTML += '<p class="text-gray-500 text-center">Warning: Circular dependency detected or some courses missing. Displaying unsorted courses.</p>';
+                    coursesArray.forEach((courseId, index) => {
+                        const node = graph.getNode(courseId);
+                        if (node) {
+                             const courseName = node.name || node.Name;
+                            innerHTML += `
+                                <div class="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100 text-sm path-step" style="animation-delay: ${index * 0.05}s;">
+                                    <span class="font-semibold">${node.id}</span>: ${courseName}
+                                </div>
+                            `;
+                        }
+                    });
+                }
+                
+                innerHTML += `</div>`;
+                semesterDiv.innerHTML = innerHTML;
+                semesterPathContainer.appendChild(semesterDiv);
+            } else {
+                semesterPathContainer.innerHTML = '<p class="text-gray-500 text-center p-4 rounded-lg bg-gray-100 border border-gray-200">No courses found for this semester. The selected semester might have no courses listed in the database or the data structure is unexpected.</p>';
+            }
+        } catch (error) {
+            console.error('Failed to get semester courses:', error);
+            semesterPathContainer.innerHTML = '<p class="text-red-500 text-center p-4 rounded-lg bg-red-50 border border-red-200">Error fetching semester courses. Please check the backend API response.</p>';
+        }
+    }
+    
+    async function searchCourses() {
+        const query = searchInput.value;
+        searchResultsContainer.innerHTML = '';
+        if (query.length < 2) return;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/courses/search?query=${query}`);
+            const results = await response.json();
+            
+            if (results.length > 0) {
+                results.forEach(node => {
+                    const resultEl = document.createElement('div');
+                    resultEl.className = 'p-3 hover:bg-gray-100 cursor-pointer border-t first:border-t-0 transition-colors course-card';
+                    const courseName = node.name || node.Name;
+                    resultEl.innerHTML = `<span class="font-bold">${node.id}</span>: ${courseName}`;
+                    resultEl.addEventListener('click', () => {
+                        document.querySelector('.nav-tab[data-tab="graph"]').click();
+                        setTimeout(() => highlightNode(node.id), 300);
+                        searchResultsContainer.innerHTML = '';
+                        searchInput.value = '';
+                    });
+                    searchResultsContainer.appendChild(resultEl);
+                });
+            } else {
+                searchResultsContainer.innerHTML = '<p class="p-3 text-gray-500">No courses found.</p>';
+            }
+        } catch (error) {
+            console.error('Failed to search courses:', error);
+            searchResultsContainer.innerHTML = '<p class="p-3 text-red-500">Error searching courses.</p>';
+        }
+    }
+    
+    // TAB LOGIC
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => {
+                t.classList.remove('tab-active');
+                t.setAttribute('aria-selected', 'false');
+            });
+            tab.classList.add('tab-active');
+            tab.setAttribute('aria-selected', 'true');
+            tabPanes.forEach(pane => {
+                pane.classList.add('hidden');
+            });
+            document.getElementById(`${tab.dataset.tab}-content`).classList.remove('hidden');
+        });
+    });
+
+    allCoursesList.addEventListener('change', updateRecommendations);
+    
+    semesterSelect.addEventListener('change', (e) => {
+        showCoursesForSemester(e.target.value);
+    });
+    
+    searchInput.addEventListener('keyup', searchCourses);
+    new ResizeObserver(drawGraph).observe(graphContainer);
+    
+    // Initial setup
+    const initialTab = document.querySelector('.nav-tab[data-tab="path"]');
+    initialTab.click();
+    initApp();
+});
+</script>
+
+</body>
+</html>
