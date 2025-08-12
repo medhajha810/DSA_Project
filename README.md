@@ -53,7 +53,7 @@ Follow these steps to get a local copy of the project up and running.
 git clone [https://github.com/your-username/DSA.git](https://github.com/your-username/DSA.git)
 cd DSA
 
-2. Set up the Python Backend
+#### 2. Set up the Python Backend
 Create a virtual environment and install the required Python packages.
 
 # Create a virtual environment
@@ -67,7 +67,8 @@ venv\Scripts\activate
 
 # Install dependencies from requirements.txt
 pip install -r requirements.txt
-3. Configure Firebase
+
+#### 3. Configure Firebase
 The backend needs access to your Firebase Firestore database.
 
 Go to your Firebase project console and create a new project.
@@ -80,7 +81,7 @@ Rename the downloaded file to firebase-sa.json and place it in the Backend/ dire
 
 Warning: This file contains sensitive credentials. It is a best practice to add Backend/firebase-sa.json to your .gitignore file to prevent it from being committed to your public repository.
 
-4. Run the Application Locally
+#### 4. Run the Application Locally
 Run the Flask development server from the root of your project.
 
 
